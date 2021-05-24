@@ -1,0 +1,42 @@
+server:
+  port: 18089
+#输入参数
+grabber:
+  options:
+    #设置采集器构造超时时间(单位微秒，1秒=1000000微秒)
+    stimeout: '5000000'
+  urls:
+  - key: 1
+    stream-url: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov
+  - key: 2
+    stream-url: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov
+  - key: 3
+    stream-url: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov
+  - key: 4
+    stream-url: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov
+  - key: 5
+    stream-url: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov
+#输出参数
+recorder:
+  options:
+    video:
+      crf: '0'
+      tune: zerolatency
+      preset: ultrafast
+    audio:
+      crf: '0'
+live:
+  rtmpPort: 1935
+  enableHttpFlv: true
+  httpFlvPort: 18082
+
+  # 是否开启保存视频
+  saveFlvFile: false
+  # 视频保存路径
+  saveFlVFilePath: D:/flv
+  # the size of thread pool that write rtmp and flv packages
+  handlerThreadPoolSize: 20
+
+logging:
+  level:
+    root: info

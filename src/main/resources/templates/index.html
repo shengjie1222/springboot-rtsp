@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+    <title>Spring Boot 集成 RTSP 视频流</title>
+    <style>
+        .mainContainer {
+            display: block;
+        }
+
+        .centeredVideo {
+            display: inline-block;
+        }
+
+        .controls {
+            display: block;
+            width: 100%;
+            text-align: left;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+<input id="sourceNum" type="hidden" th:value="${SourceNum}" />
+<div class="mainContainer">
+    <video th:each="i : ${SourceNum}" th:id="videoElement+${i}" class="centeredVideo" controls autoplay height="160px" width="240px">Your browser is too old which doesn't support HTML5 video.</video>
+</div>
+<div class="controls">
+    <button onclick="flv_start()">开始</button>
+    <button onclick="flv_pause()">暂停</button>
+</div>
+<script type="text/javascript" src="/js/flv.js"></script>
+<script type="text/javascript" src="/js/jquery.min.js"></script>
+<script>
+    const playerElements = {};
+    $(document).ready(function(){
+        let sourceNum = eval($("#sourceNum").val());
+        $.each(sourceNum,function(i,sourceKey){
+            player(parseInt(sourceKey));
+        });
+
+    });
+
+    /**
+     * @param id 元素ID
+     * @param i 序号位 1+
+     */
+    function player(key){
+        let videoElement = document.getElementById('videoElement'+key);
+        playerElements[key-1] = videoElement;
+        if (flvjs.isSupported()) {
+            let url = "http://localhost:18082/live/"+key;
+            let flvPlayer = flvjs.createPlayer({
+                type: 'flv',
+                isLive: true,
+                url: url,
+                duration: 0,
+                filesize: 0,
+                enableStashBuffer: false,
+                hasAudio: true,
+                hasVideo: true
+            });
+            flvPlayer.attachMediaElement(videoElement);
+            flvPlayer.load(); //加载
+        }
+    }
+
+    function flv_start(key) {
+        if(key){
+            playerElements[key-1].play();
+        }else{
+            $.each(playerElements,function(k,player){
+                player.play();
+            })
+        }
+
+    }
+
+    function flv_pause(key) {
+        if(key){
+            playerElements[key-1].pause();
+        }else{
+            $.each(playerElements,function(k,player){
+                player.pause();
+            })
+        }
+    }
+</script>
+</body>
+</html>
