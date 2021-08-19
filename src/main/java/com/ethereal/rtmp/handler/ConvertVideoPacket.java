@@ -6,11 +6,24 @@ import com.ethereal.rtmp.common.TransferDataType;
 import lombok.extern.slf4j.Slf4j;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
 import org.bytedeco.ffmpeg.avformat.AVFormatContext;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
-import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.*;
 import org.bytedeco.javacv.FrameGrabber.Exception;
+import org.springframework.util.CollectionUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_unref;
 
@@ -108,6 +121,8 @@ public class ConvertVideoPacket {
         recorder.setAudioBitrate(audioBitrate);
         recorder.setAudioCodec(audioCodec);
         recorder.setSampleRate(sampleRate);
+        recorder.setImageHeight(160);
+        recorder.setImageWidth(240);
         AVFormatContext fc = null;
         if (out.startsWith(TransferDataType.rtmp.name())
                 || out.startsWith(TransferDataType.flv.name())) {
@@ -118,14 +133,15 @@ public class ConvertVideoPacket {
         recorder.start(fc);
         return this;
     }
-
     /**
      * 转封装
      */
-    public void go() throws IOException {
+    public void go(String imagePath,int key) throws IOException {
         log.info("fromSrc:{} -> outSrc:{}",fromSrc, outSrc);
+        lockMap.put(key,Arrays.asList(new AtomicBoolean(false)));
         //采集或推流导致的错误次数
         long err_index = 0;
+        runOnOk();
         grabber.flush();
         //连续五次没有采集到帧则认为视频采集结束，程序错误次数超过1次即中断程序
         for (int no_frame_index = 0; no_frame_index < 5 || err_index > 1; ) {
@@ -142,6 +158,21 @@ public class ConvertVideoPacket {
                 //如果失败err_index自增1
                 err_index += (recorder.recordPacket(pkt) ? 0 : 1);
                 av_packet_unref(pkt);
+
+                //2.帧截图
+                if(tunOn.get()){
+                    long target = System.currentTimeMillis();
+
+                    Frame frame = grabber.grabImage();
+                    System.out.println("spend time: " +(System.currentTimeMillis() - target));
+//                    if (frame != null) {
+//                        BufferedImage buff = frameToBufferedImage(frame);
+//                        if(buff != null) {
+//                            imageProcessing(buff, imagePath,key);
+//                        }
+//                    }
+                }
+
             } catch (Exception e) {//推流失败
                 err_index++;
                 e.printStackTrace();
@@ -150,4 +181,71 @@ public class ConvertVideoPacket {
         log.warn("连接断开");
     }
 
+
+    private Map<Integer,List<AtomicBoolean>> lockMap =  new HashMap<>();
+
+    private AtomicBoolean tunOn = new AtomicBoolean(false);
+
+    private static final ThreadPoolExecutor threadPool = new ThreadPoolExecutor(5,5,5000,
+            TimeUnit.MILLISECONDS,new LinkedBlockingQueue());
+
+    private void  imageProcessing(final BufferedImage buff,String imagePath,int key){
+        threadPool.execute(()->{
+            List<AtomicBoolean> locks = lockMap.get(key);
+            for (int i = 0; i < locks.size(); i++) {
+                if(!locks.get(i).get()){
+                    locks.get(i).set(true);
+                    try {
+                        System.out.println(LocalTime.now()+":"+key+"_"+i+"拿到锁了");
+                        File outPut = new File(imagePath+key+"_"+i+".jpg");
+                        ImageIO.write(buff, "jpg", outPut);
+                        Thread.sleep(5000);
+                    } catch (InterruptedException | IOException e) {
+                        e.printStackTrace();
+                    } finally {
+                        locks.get(i).set(false);
+                        System.out.println(LocalTime.now()+":"+key+"_"+i+"释放锁");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    private void runOnOk(){
+        threadPool.execute(()->{
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                tunOn.set(true);
+            }
+        });
+    }
+
+    /**
+     * 创建BufferedImage对象
+     */
+    private BufferedImage frameToBufferedImage(Frame frame) {
+        Java2DFrameConverter converter = new Java2DFrameConverter();
+        BufferedImage bufferedImage = converter.getBufferedImage(frame);
+//		bufferedImage=rotateClockwise90(bufferedImage);
+        return bufferedImage;
+    }
+
+    /**
+     * 处理图片，将图片旋转90度。
+     */
+    private BufferedImage rotateClockwise90(BufferedImage bi) {
+        int width = bi.getWidth();
+        int height = bi.getHeight();
+        BufferedImage bufferedImage = new BufferedImage(height, width, bi.getType());
+        for (int i = 0; i < width; i++) {
+            for (int j = 0; j < height; j++) {
+                bufferedImage.setRGB(j, i, bi.getRGB(i, j));
+            }
+        }
+        return bufferedImage;
+    }
 }

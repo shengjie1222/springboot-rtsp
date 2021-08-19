@@ -13,13 +13,13 @@ import org.springframework.stereotype.Service;
 public class StreamService {
 
     @Async
-    public void play(String streamUrl,Integer i) {
+    public void play(String streamUrl,Integer key) {
         while (true){
             try {
                 new ConvertVideoPacket()
                         .from(streamUrl)
-                        .to("rtmp://127.0.0.1:"+ Options.liveConfig.getRtmpPort()+"/live/"+i)
-                        .go();
+                        .to("rtmp://127.0.0.1:"+ Options.liveConfig.getRtmpPort()+"/live/"+key)
+                        .go("D:\\flv\\",key);
             } catch (Exception e) {
                 e.printStackTrace();
             }  finally {
